@@ -97,7 +97,7 @@ internal class WebViewActivity: AppCompatActivity() {
 
 
         // Web view
-        webView = findViewById<WebView?>(R.id.authWebView).apply {
+        webView = findViewById<WebView>(R.id.authWebView).apply {
             settings.apply {
                 cacheMode = WebSettings.LOAD_NO_CACHE
                 domStorageEnabled = true
@@ -116,8 +116,20 @@ internal class WebViewActivity: AppCompatActivity() {
                 }
             }
 
+            addInitialCookies()
+
             loadUrl(webViewStartUri.toString())
         }
+    }
+
+    private fun addInitialCookies() {
+        val cookieManager = android.webkit.CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+
+        cookieManager.setCookie("https://connect.om.fr", "X-Requested-From=WebView; path=/; domain=connect.om.fr")
+        cookieManager.setCookie("https://connect.athena.om.fr", "X-Requested-From=WebView; path=/; domain=connect.athena.om.fr")
+
+        cookieManager.flush()
     }
 
     private fun extractState(state: Bundle?) {
