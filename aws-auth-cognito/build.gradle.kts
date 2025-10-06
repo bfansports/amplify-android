@@ -14,9 +14,9 @@
  */
 
 plugins {
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.10"
-    id("com.android.library")
-    id("kotlin-android")
+    alias(libs.plugins.amplify.android.library)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.amplify.api)
 }
 
 apply(from = rootProject.file("configuration/publishing.gradle"))
@@ -40,8 +40,10 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.security)
     implementation(libs.androidx.browser)
+    implementation(libs.androidx.coordinatorlayout)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services)
+    implementation(libs.google.material)
 
     implementation(libs.aws.http)
     implementation(libs.aws.cognitoidentity)
