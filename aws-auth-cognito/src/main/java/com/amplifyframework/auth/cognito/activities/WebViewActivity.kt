@@ -122,6 +122,9 @@ internal class WebViewActivity: AppCompatActivity() {
         }
     }
 
+    /**
+    * Add default cookies to the web view
+    */
     private fun addInitialCookies() {
         val cookieManager = android.webkit.CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
