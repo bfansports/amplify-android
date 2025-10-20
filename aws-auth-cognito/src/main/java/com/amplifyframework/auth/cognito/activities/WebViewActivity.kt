@@ -129,8 +129,8 @@ internal class WebViewActivity: AppCompatActivity() {
         val cookieManager = android.webkit.CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
 
-        cookieManager.setCookie("https://connect.om.fr", "X-Requested-From=WebView; path=/; domain=connect.om.fr")
-        cookieManager.setCookie("https://connect.athena.om.fr", "X-Requested-From=WebView; path=/; domain=connect.athena.om.fr")
+        cookieManager.setCookie("https://connect.om.fr", "X-Requested-With=WebView; path=/; domain=connect.om.fr")
+        cookieManager.setCookie("https://connect.athena.om.fr", "X-Requested-With=WebView; path=/; domain=connect.athena.om.fr")
 
         cookieManager.flush()
     }
