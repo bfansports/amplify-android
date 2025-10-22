@@ -1,75 +1,89 @@
 package com.amplifyframework.auth.cognito.activities
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.View
+import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
-import com.amplifyframework.auth.cognito.R
-import com.amplifyframework.core.Amplify
-import com.google.android.material.appbar.MaterialToolbar
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.amplifyframework.auth.cognito.R
+import com.amplifyframework.core.Amplify
+import com.google.android.material.appbar.MaterialToolbar
 
-internal class WebViewActivity: AppCompatActivity() {
+class WebViewActivity : AppCompatActivity(R.layout.activity_auth_webview) {
+
     private lateinit var webView: WebView
-    private lateinit var webViewStartUri: Uri
+    private lateinit var startUri: Uri
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        if (savedInstanceState == null) {
-            extractState(intent.extras)
-            initializeView()
+        this.startUri = if (Build.VERSION.SDK_INT >= 33) {
+            savedInstanceState?.getParcelable(EXTRA_START_URI, Uri::class.java)
+                ?: intent.getParcelableExtra(EXTRA_START_URI, Uri::class.java)
         } else {
-            extractState(savedInstanceState)
-            initializeView()
-            webView.restoreState(savedInstanceState)
+            @Suppress("DEPRECATION")
+            savedInstanceState?.getParcelable(EXTRA_START_URI)
+                ?: @Suppress("DEPRECATION") intent.getParcelableExtra(EXTRA_START_URI)
+        } ?: run { cancel(); return }
+
+        setupSystemBars()
+        setupToolbar()
+        setupWebView()
+
+
+        if (savedInstanceState != null) {
+            this.webView.restoreState(savedInstanceState)
+        } else {
+            this.webView.loadUrl(this.startUri.toString())
         }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView.canGoBack()) {
-                    webView.goBack()
-                } else {
-                    handleAuthorizationCanceled()
-                }
+                if (webView.canGoBack()) webView.goBack() else cancel()
             }
         })
     }
 
-    override fun onNewIntent(intent: Intent) {
+    override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        setIntent(intent)
+        intent?.data?.let { complete(it) }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        CookieManager.getInstance().flush()
     }
 
     override fun onResume() {
         super.onResume()
-
-        if (intent.data != null) {
-            handleAuthorizationComplete()
-            finish()
-        }
+        CookieManager.getInstance().flush()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putParcelable(WEB_VIEW_START_URI_KEY, webViewStartUri)
+        this.webView.saveState(outState)
+        outState.putParcelable(EXTRA_START_URI, this.startUri)
     }
 
-    private fun initializeView() {
-        setContentView(R.layout.activity_auth_webview)
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_UI_HIDDEN) CookieManager.getInstance().flush()
+    }
 
+    private fun setupSystemBars() {
         WindowCompat.setDecorFitsSystemWindows(window, true)
         val insetsController = WindowInsetsControllerCompat(window, window.decorView)
         insetsController.isAppearanceLightStatusBars = false
@@ -80,112 +94,112 @@ internal class WebViewActivity: AppCompatActivity() {
             view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
             WindowInsetsCompat.CONSUMED
         }
+    }
 
-        // Toolbar
+    private fun setupToolbar() {
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
-
         setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        toolbar.setNavigationOnClickListener { cancel() }
+    }
 
-        supportActionBar?.apply {
-            setDisplayHomeAsUpEnabled(true)
-            setDisplayShowTitleEnabled(false)
-        }
-
-        toolbar.setNavigationOnClickListener {
-            handleAuthorizationCanceled()
-        }
-
-
-        // Web view
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun setupWebView() {
         webView = findViewById<WebView>(R.id.authWebView).apply {
             settings.apply {
-                cacheMode = WebSettings.LOAD_NO_CACHE
-                domStorageEnabled = true
+                cacheMode = WebSettings.LOAD_DEFAULT
                 javaScriptEnabled = true
+                domStorageEnabled = true
+                builtInZoomControls = false
+                displayZoomControls = false
+                userAgentString = "$userAgentString AppWebView"
             }
-
-            webViewClient = object: WebViewClient() {
+            val cm = CookieManager.getInstance()
+            cm.setCookie(
+                "https://connect.om.fr",
+                "X-Requested-With=WebView; Path=/; Domain=connect.om.fr; Secure; SameSite=None"
+            )
+            cm.setCookie(
+                "https://connect.athena.om.fr",
+                "X-Requested-With=WebView; Path=/; Domain=connect.athena.om.fr; Secure; SameSite=None"
+            )
+            cm.flush()
+            webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest): Boolean {
-                    return handleRedirect(request.url)
+                    return handleUri(request.url)
                 }
 
-                @Deprecated("Deprecated in Java")
-                @Suppress("OverridingDeprecatedMember")
+                @Deprecated("For pre-N")
                 override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                    return handleRedirect(url.toUri())
+                    return handleUri(url.toUri())
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    CookieManager.getInstance().flush()
+                }
+
+                override fun onPageCommitVisible(view: WebView?, url: String?) {
+                    CookieManager.getInstance().flush()
                 }
             }
-
-            addInitialCookies()
-
-            loadUrl(webViewStartUri.toString())
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
         }
     }
 
-    /**
-    * Add default cookies to the web view
-    */
-    private fun addInitialCookies() {
-        val cookieManager = android.webkit.CookieManager.getInstance()
-        cookieManager.setAcceptCookie(true)
+    private fun handleUri(uri: Uri): Boolean {
+        if (isAllowedRedirectScheme(uri)) {
+            complete(uri)
+            return true
+        }
 
-        cookieManager.setCookie("https://connect.om.fr", "X-Requested-With=WebView; path=/; domain=connect.om.fr")
-        cookieManager.setCookie("https://connect.athena.om.fr", "X-Requested-With=WebView; path=/; domain=connect.athena.om.fr")
-
-        cookieManager.flush()
-    }
-
-    private fun extractState(state: Bundle?) {
-        if (state == null) {
-            Log.d(TAG, "WebViewActivity was created with a null state.")
+        if (isSuccessHttps(uri)) {
+            CookieManager.getInstance().flush()
+            setResult(RESULT_OK, Intent().setData(uri))
             finish()
-            return
+            return true
         }
 
-        webViewStartUri = state.getParcelable(WEB_VIEW_START_URI_KEY)!!
-    }
-
-    private fun handleAuthorizationComplete() {
-        Log.d(TAG, "Authorization flow completed successfully")
-        setResult(RESULT_OK, intent)
-    }
-
-    private fun handleAuthorizationCanceled() {
-        Log.d(TAG, "Authorization flow canceled by user")
-
-        Amplify.Auth.handleWebUISignInResponse(null)
-        setResult(RESULT_CANCELED)
-        finish()
-    }
-
-    private fun handleRedirect(uri: Uri): Boolean {
         return when (uri.scheme) {
-            "http", "https" -> {
-                false
-            }
+            "http", "https" -> false
             else -> {
-                val intent = Intent(Intent.ACTION_VIEW, uri)
-
-                if (intent.resolveActivity(packageManager) != null) {
-                    startActivity(intent)
-                }
-
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                 true
             }
         }
     }
 
-    companion object {
-        private const val TAG = "AuthClient"
-        private const val WEB_VIEW_START_URI_KEY = "webViewStartUri"
+    private fun isAllowedRedirectScheme(uri: Uri): Boolean {
+        val allowed = intent.getStringArrayExtra(EXTRA_REDIRECT_SCHEMES)?.toSet().orEmpty()
+        return uri.scheme != null && uri.scheme in allowed
+    }
 
-        /**
-         * Creates an intent to start an OAuth2 flow in a Webkit web view.
-         * @param context the package context for the app.
-         */
-        fun createStartIntent(uri: Uri, context: Context): Intent {
+    private fun isSuccessHttps(uri: Uri): Boolean {
+        if (uri.scheme != "http" && uri.scheme != "https") return false
+        val prefixes = intent.getStringArrayExtra(EXTRA_SUCCESS_URL_PREFIXES).orEmpty()
+        return prefixes.any { uri.toString().startsWith(it) }
+    }
+
+    private fun complete(callbackUri: Uri) {
+        CookieManager.getInstance().flush()
+        setResult(RESULT_OK, Intent().setData(callbackUri))
+        finish()
+    }
+
+    private fun cancel() {
+        Amplify.Auth.handleWebUISignInResponse(null)
+        setResult(RESULT_CANCELED)
+        finish()
+    }
+
+    companion object {
+        private const val EXTRA_START_URI = "extra_start_uri"
+        private const val EXTRA_REDIRECT_SCHEMES = "extra_redirect_schemes"
+        private const val EXTRA_SUCCESS_URL_PREFIXES = "extra_success_url_prefixes"
+        fun createStartIntent(context: Context, startUri: Uri): Intent {
             val intent = Intent(context, WebViewActivity::class.java).apply {
-                putExtra(WEB_VIEW_START_URI_KEY, uri)
+                putExtra(EXTRA_START_URI, startUri)
             }
             return intent
         }
