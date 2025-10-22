@@ -112,7 +112,7 @@ internal class HostedUIClient private constructor(
     }
 
     private fun launchWebView(uri: Uri, activity: Activity? = null) {
-        val webViewIntent = WebViewActivity.createStartIntent(uri, context)
+        val webViewIntent = WebViewActivity.createStartIntent(context, uri)
 
         if (activity != null) {
             activity.startActivityForResult(webViewIntent, WEB_VIEW_ACTIVITY_CODE)
