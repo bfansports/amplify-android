@@ -228,16 +228,6 @@ internal class WebViewActivity : AppCompatActivity(R.layout.activity_auth_webvie
     }
 }
 
-/**
- * Pads [target] for the system bars and the keyboard, so that showing the IME shrinks the WebView
- * and Chromium scrolls the focused input above the keyboard.
- *
- * The padding follows the IME animation frame by frame rather than snapping: when the keyboard
- * starts animating, the framework dispatches the *final* insets straight away, so applying those
- * would jump the whole layout to its end state before the keyboard has finished sliding in. Those
- * dispatches are ignored while an IME animation is running ([animatingIme]) and the interpolated
- * insets from [onProgress] are applied instead.
- */
 private class ImeAwareInsetsCallback(private val target: View) :
     WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP),
     OnApplyWindowInsetsListener {
@@ -266,10 +256,6 @@ private class ImeAwareInsetsCallback(private val target: View) :
     }
 
     private fun applyPadding(insets: WindowInsetsCompat) {
-        // Union of bars + keyboard takes the max per side. Insets are relative to the window frame,
-        // so this stays correct whether the framework resized the window for the IME (adjustResize,
-        // API < 30 — the keyboard then reports 0) or the IME overlays an edge-to-edge window
-        // (Android 15+, where setDecorFitsSystemWindows is disabled).
         val i = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
         target.setPadding(i.left, i.top, i.right, i.bottom)
     }
