@@ -16,8 +16,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.IntentCompat
 import androidx.core.net.toUri
 import androidx.core.os.BundleCompat
+import androidx.core.view.OnApplyWindowInsetsListener
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsAnimationCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.amplifyframework.auth.cognito.R
@@ -91,16 +93,17 @@ internal class WebViewActivity : AppCompatActivity(R.layout.activity_auth_webvie
     }
 
     private fun setupSystemBars() {
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        val contentContainer: View = findViewById(android.R.id.content)
+        val insetsCallback = ImeAwareInsetsCallback(contentContainer)
         val insetsController = WindowInsetsControllerCompat(window, window.decorView)
+
         insetsController.isAppearanceLightStatusBars = false
         insetsController.isAppearanceLightNavigationBars = false
-        val contentContainer: View = findViewById(android.R.id.content)
-        ViewCompat.setOnApplyWindowInsetsListener(contentContainer) { view, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
-            WindowInsetsCompat.CONSUMED
-        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(contentContainer, insetsCallback)
+        ViewCompat.setWindowInsetsAnimationCallback(contentContainer, insetsCallback)
     }
 
     private fun setupToolbar() {
@@ -223,4 +226,54 @@ internal class WebViewActivity : AppCompatActivity(R.layout.activity_auth_webvie
             return intent
         }
     }
+}
+
+/**
+ * Pads [target] for the system bars and the keyboard, so that showing the IME shrinks the WebView
+ * and Chromium scrolls the focused input above the keyboard.
+ *
+ * The padding follows the IME animation frame by frame rather than snapping: when the keyboard
+ * starts animating, the framework dispatches the *final* insets straight away, so applying those
+ * would jump the whole layout to its end state before the keyboard has finished sliding in. Those
+ * dispatches are ignored while an IME animation is running ([animatingIme]) and the interpolated
+ * insets from [onProgress] are applied instead.
+ */
+private class ImeAwareInsetsCallback(private val target: View) :
+    WindowInsetsAnimationCompat.Callback(DISPATCH_MODE_STOP),
+    OnApplyWindowInsetsListener {
+
+    private var animatingIme = false
+
+    override fun onApplyWindowInsets(v: View, insets: WindowInsetsCompat): WindowInsetsCompat {
+        if (!animatingIme) applyPadding(insets)
+        return WindowInsetsCompat.CONSUMED
+    }
+
+    override fun onPrepare(animation: WindowInsetsAnimationCompat) {
+        if (animation.isIme) animatingIme = true
+    }
+
+    override fun onProgress(
+        insets: WindowInsetsCompat,
+        runningAnimations: MutableList<WindowInsetsAnimationCompat>
+    ): WindowInsetsCompat {
+        applyPadding(insets)
+        return insets
+    }
+
+    override fun onEnd(animation: WindowInsetsAnimationCompat) {
+        if (animation.isIme) animatingIme = false
+    }
+
+    private fun applyPadding(insets: WindowInsetsCompat) {
+        // Union of bars + keyboard takes the max per side. Insets are relative to the window frame,
+        // so this stays correct whether the framework resized the window for the IME (adjustResize,
+        // API < 30 — the keyboard then reports 0) or the IME overlays an edge-to-edge window
+        // (Android 15+, where setDecorFitsSystemWindows is disabled).
+        val i = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
+        target.setPadding(i.left, i.top, i.right, i.bottom)
+    }
+
+    private val WindowInsetsAnimationCompat.isIme: Boolean
+        get() = typeMask and WindowInsetsCompat.Type.ime() != 0
 }
