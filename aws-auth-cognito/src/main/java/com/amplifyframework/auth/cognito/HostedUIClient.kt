@@ -207,8 +207,8 @@ internal class HostedUIClient private constructor(
         }
 
         // check if prompt is set as param.
-        hostedUIOptions.prompt?.takeIf { it.isNotEmpty() }?.let { prompts ->
-            builder.appendQueryParameter("prompt", prompts.joinToString(" ") { it.value })
+        hostedUIOptions.prompt?.joinToString(" ") { it.value }.let {
+            builder.appendQueryParameter("prompt", it)
         }
 
         // check if resource is set as param.
