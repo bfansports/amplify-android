@@ -32,6 +32,7 @@ dependencies {
     api(project(":core"))
     api(project(":aws-core"))
     implementation(project(":aws-auth-plugins-core"))
+    implementation(libs.androidx.webkit)
     implementation(libs.kotlin.coroutines)
     implementation(libs.kotlin.serializationJson)
     implementation(libs.androidx.appcompat)

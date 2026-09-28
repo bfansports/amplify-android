@@ -56,6 +56,7 @@ sqlcipher = "4.17.0"
 uuid = "5.2.0"
 totp = "1.0.1"
 turbine = "1.1.0"
+webkit = "1.17.1"
 
 [libraries]
 android-desugartools = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
@@ -158,6 +159,7 @@ plugin-kotlin-android = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", 
 plugin-kover = { module = "org.jetbrains.kotlinx:kover-gradle-plugin", version.ref = "kover" }
 plugin-ktlint = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlint" }
 plugin-licensee = { module = "app.cash.licensee:app.cash.licensee.gradle.plugin", version.ref = "licensee" }
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 
 [bundles]
 # Basic shared unit test libraries

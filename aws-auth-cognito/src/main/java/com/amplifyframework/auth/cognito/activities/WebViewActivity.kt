@@ -5,8 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -22,6 +25,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsAnimationCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import com.amplifyframework.auth.cognito.R
 import com.amplifyframework.core.Amplify
 import com.google.android.material.appbar.MaterialToolbar
@@ -124,7 +129,9 @@ internal class WebViewActivity : AppCompatActivity(R.layout.activity_auth_webvie
                 builtInZoomControls = false
                 displayZoomControls = false
                 userAgentString = "$userAgentString AppWebView"
+                applyPasskeySupport()
             }
+
             val cm = CookieManager.getInstance()
             cm.setCookie(
                 "https://connect.om.fr",
@@ -135,7 +142,9 @@ internal class WebViewActivity : AppCompatActivity(R.layout.activity_auth_webvie
                 "X-Requested-With=WebView; Path=/; Domain=connect.athena.om.fr; Secure; SameSite=None"
             )
             cm.flush()
-            webViewClient = object : WebViewClient() {
+
+            webViewClient = @SuppressLint("MissingOnRenderProcessGone")
+            object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest): Boolean =
                     handleUri(request.url)
 
@@ -148,6 +157,12 @@ internal class WebViewActivity : AppCompatActivity(R.layout.activity_auth_webvie
 
                 override fun onPageCommitVisible(view: WebView?, url: String?) {
                     CookieManager.getInstance().flush()
+                }
+
+                override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                    (view?.parent as? ViewGroup)?.removeView(view)
+                    view?.destroy()
+                    return super.onRenderProcessGone(view, detail)
                 }
             }
             CookieManager.getInstance().setAcceptCookie(true)
@@ -224,6 +239,17 @@ internal class WebViewActivity : AppCompatActivity(R.layout.activity_auth_webvie
                 data = responseUri
             }
             return intent
+        }
+    }
+
+    fun WebSettings.applyPasskeySupport() {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
+            WebSettingsCompat.setWebAuthenticationSupport(
+                this,
+                WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP
+            )
+        } else {
+            Log.w("Passkey", "WebView provider on this device does not support passkeys.")
         }
     }
 }
